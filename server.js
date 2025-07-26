@@ -25,27 +25,34 @@ function broadcast(data) {
   });
 }
 
+// ... your imports and setup
+
 tiktokLiveClient.on('chat', (chat) => {
+  console.log('Chat event:', chat);
+
   broadcast({
     type: 'chat',
-    uniqueId: chat.uniqueId,
-    comment: chat.comment
+    uniqueId: chat.uniqueId || chat.userId || 'UnknownUser',
+    comment: chat.comment || chat.message || chat.commentMessage || '',
+    profilePictureUrl: chat.profilePictureUrl || '', // optional, if you want to show avatar
   });
 });
 
 tiktokLiveClient.on('gift', (gift) => {
   broadcast({
     type: 'gift',
-    uniqueId: gift.uniqueId,
-    giftName: gift.giftName,
-    repeatCount: gift.repeatCount
+    uniqueId: gift.uniqueId || gift.userId || 'UnknownUser',
+    giftName: gift.giftName || 'Gift',
+    repeatCount: gift.repeatCount || 1,
   });
 });
 
-wss.on('connection', (ws) => {
-  console.log('New WebSocket client connected');
-});
-
-server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+// broadcast function sends JSON stringified data to clients
+function broadcast(data) {
+  const msg = JSON.stringify(data);
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(msg);
+    }
+  });
+}
