@@ -1,51 +1,51 @@
 import express from 'express';
-import { WebSocketServer } from 'ws';
-import { WebcastPushConnection } from 'tiktok-live-connector';
-
-const PORT = process.env.PORT || 10000;
-const TIKTOK_USERNAME = 'spotesc'; // <-- your TikTok username
+import http from 'http';
+import WebSocket, { WebSocketServer } from 'ws';
+import { LiveClient } from 'tiktok-live-connector';
 
 const app = express();
-
-app.get('/', (req, res) => {
-  res.send('TikTok Overlay Backend running');
-});
-
-const server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
-
+const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-wss.on('connection', (ws) => {
-  console.log('WebSocket client connected');
+const PORT = process.env.PORT || 10000;
+const TIKTOK_USERNAME = 'spotesc';  // Change to your TikTok username
 
-  ws.on('close', () => {
-    console.log('Client disconnected');
-  });
-});
+const tiktokLiveClient = new LiveClient(TIKTOK_USERNAME);
 
-// Create connection instance
-const tiktokLiveConnection = new WebcastPushConnection(TIKTOK_USERNAME);
+tiktokLiveClient.connect().then(() => {
+  console.log(`Connected to roomId: ${tiktokLiveClient.roomId}`);
+}).catch(console.error);
 
-// Connect to the stream
-tiktokLiveConnection.connect().then(state => {
-  console.log(`Connected to roomId: ${state.roomId}`);
-}).catch(err => {
-  console.error('Failed to connect:', err);
-});
-
-// Handle chat events
-tiktokLiveConnection.on('chat', data => {
-  console.log(`[Chat] ${data.uniqueId}: ${data.comment}`);
-
+function broadcast(data) {
+  const json = JSON.stringify(data);
   wss.clients.forEach(client => {
-    if (client.readyState === 1) {
-      client.send(JSON.stringify({
-        type: 'chat',
-        user: data.uniqueId,
-        message: data.comment
-      }));
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(json);
     }
   });
+}
+
+tiktokLiveClient.on('chat', (chat) => {
+  broadcast({
+    type: 'chat',
+    uniqueId: chat.uniqueId,
+    comment: chat.comment
+  });
+});
+
+tiktokLiveClient.on('gift', (gift) => {
+  broadcast({
+    type: 'gift',
+    uniqueId: gift.uniqueId,
+    giftName: gift.giftName,
+    repeatCount: gift.repeatCount
+  });
+});
+
+wss.on('connection', (ws) => {
+  console.log('New WebSocket client connected');
+});
+
+server.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
