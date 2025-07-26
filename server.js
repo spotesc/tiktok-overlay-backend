@@ -1,26 +1,19 @@
-import express from 'express';
-import http from 'http';
-import WebSocket, { WebSocketServer } from 'ws';
-import TikTokLiveConnector from 'tiktok-live-connector';
-
-const { LiveClient } = TikTokLiveConnector;
+const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
+const { WebcastPushConnection } = require('tiktok-live-connector');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 10000;
-const TIKTOK_USERNAME = 'spotesc';  // Replace with your username
+const tiktokUsername = 'spotesc'; // Replace with your TikTok username
 
-const tiktokLiveClient = new LiveClient(TIKTOK_USERNAME);
+// Setup TikTok connection
+let tiktokLiveConnection = new WebcastPushConnection(tiktokUsername);
 
-tiktokLiveClient.connect()
-  .then(() => {
-    console.log(`Connected to roomId: ${tiktokLiveClient.roomId}`);
-  })
-  .catch(console.error);
-
-// Broadcast function (only one)
+// Handle WebSocket broadcast
 function broadcast(data) {
   const json = JSON.stringify(data);
   wss.clients.forEach(client => {
@@ -30,29 +23,37 @@ function broadcast(data) {
   });
 }
 
-// Handle chat
-tiktokLiveClient.on('chat', (chat) => {
-  console.log('Chat:', chat);
+// Connect to TikTok Live
+tiktokLiveConnection.connect().then(state => {
+  console.log(`Connected to TikTok roomId: ${state.roomId}`);
+}).catch(err => {
+  console.error('TikTok connection failed', err);
+});
+
+// Chat event
+tiktokLiveConnection.on('chat', (data) => {
+  console.log(`${data.uniqueId}: ${data.comment}`);
+
   broadcast({
     type: 'chat',
-    uniqueId: chat.uniqueId || chat.userId || 'UnknownUser',
-    comment: chat.comment || '',
-    profilePictureUrl: chat.profilePictureUrl || '',
+    username: data.uniqueId,
+    message: data.comment,
+    profilePicture: data.profilePictureUrl || ''
   });
 });
 
-// Handle gift
-tiktokLiveClient.on('gift', (gift) => {
-  console.log('Gift:', gift);
+// Gift event (optional)
+tiktokLiveConnection.on('gift', (data) => {
+  console.log(`${data.uniqueId} sent ${data.giftName} x${data.repeatCount}`);
+
   broadcast({
     type: 'gift',
-    uniqueId: gift.uniqueId || gift.userId || 'UnknownUser',
-    giftName: gift.giftName || 'Gift',
-    repeatCount: gift.repeatCount || 1,
+    username: data.uniqueId,
+    gift: data.giftName,
+    count: data.repeatCount
   });
 });
 
-// Start server
 server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
