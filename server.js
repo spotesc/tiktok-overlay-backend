@@ -25,8 +25,6 @@ function broadcast(data) {
   });
 }
 
-// ... your imports and setup
-
 tiktokLiveClient.on('chat', (chat) => {
   console.log('Chat event:', chat);
 
@@ -34,7 +32,7 @@ tiktokLiveClient.on('chat', (chat) => {
     type: 'chat',
     uniqueId: chat.uniqueId || chat.userId || 'UnknownUser',
     comment: chat.comment || chat.message || chat.commentMessage || '',
-    profilePictureUrl: chat.profilePictureUrl || '', // optional, if you want to show avatar
+    profilePictureUrl: chat.profilePictureUrl || '', // optional
   });
 });
 
@@ -47,12 +45,6 @@ tiktokLiveClient.on('gift', (gift) => {
   });
 });
 
-// broadcast function sends JSON stringified data to clients
-function broadcast(data) {
-  const msg = JSON.stringify(data);
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(msg);
-    }
-  });
-}
+server.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
